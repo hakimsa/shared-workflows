@@ -6,7 +6,6 @@ on:
       environment:
         required: true
         type: string
-        # valores: dev | staging | production
 
       helm-release-name:
         required: true
@@ -26,24 +25,21 @@ on:
         required: false
         type: string
         default: 'main'
-      
-      image-name:                  
+
+      image-name:
         required: false
         type: string
         default: ''
 
-      image-tag:                   
+      image-tag:
         required: false
         type: string
-        default: ${{ github.sha }}
-
+        default: ''
 
       helm-values-file:
         required: false
         type: string
         default: ''
-        # si está vacío usa la carpeta del entorno: {environment}/values.yaml
-        # si se pasa usa ese archivo: mi-app/values-staging.yaml
 
       deploy-tool:
         required: false
@@ -83,7 +79,6 @@ jobs:
       - name: Checkout app repo
         uses: actions/checkout@v4
 
-      # ── Checkout del repo de Helm charts ──────────────────
       - name: Checkout Helm releases repo
         uses: actions/checkout@v4
         with:
@@ -92,7 +87,6 @@ jobs:
           token: ${{ secrets.CHARTS_TOKEN || github.token }}
           path: ./helm-releases
 
-      # ── Descargar artefacto del CI si existe ───────────────
       - name: Download artifact
         if: ${{ inputs.artifact-name != '' }}
         uses: actions/download-artifact@v4
@@ -100,7 +94,6 @@ jobs:
           name: ${{ inputs.artifact-name }}
           path: ./artifact
 
-      # ── Configurar kubectl ─────────────────────────────────
       - name: Setup kubectl
         uses: azure/setup-kubectl@v3
 
@@ -109,7 +102,6 @@ jobs:
           mkdir -p $HOME/.kube
           echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
 
-      # ── Deploy con Helm ────────────────────────────────────
       - name: Setup Helm
         if: ${{ inputs.deploy-tool == 'helm' }}
         uses: azure/setup-helm@v3
@@ -127,19 +119,15 @@ jobs:
             --wait \
             --timeout 5m
 
-            
-      # ── Deploy con Kubectl ─────────────────────────────────
       - name: Deploy with Kubectl
         if: ${{ inputs.deploy-tool == 'kubectl' }}
         run: |
           kubectl apply -f ./helm-releases/${{ inputs.environment }}/ \
             --namespace ${{ inputs.kubectl-namespace }}
-
           kubectl rollout status deployment \
             --namespace ${{ inputs.kubectl-namespace }} \
             --timeout=5m
 
-      # ── Obtener URL del servicio ───────────────────────────
       - name: Get service URL
         id: get-url
         run: |
@@ -149,7 +137,6 @@ jobs:
             2>/dev/null || echo "pending")
           echo "url=${URL}" >> $GITHUB_OUTPUT
 
-      # ── Rollback si falla ──────────────────────────────────
       - name: Rollback on failure
         if: ${{ failure() && inputs.deploy-tool == 'helm' }}
         run: |
