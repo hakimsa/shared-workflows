@@ -121,10 +121,13 @@ jobs:
             ./helm-releases \
             --namespace ${{ inputs.helm-namespace }} \
             --create-namespace \
-            --values ./helm-releases/${{ inputs.environment }}/values.yaml \
+            --values ./helm-releases/${{ inputs.helm-values-file != '' && inputs.helm-values-file || format('{0}/values.yaml', inputs.environment) }} \
+            ${{ inputs.image-name != '' && format('--set image.repository={0}', inputs.image-name) || '' }} \
+            ${{ inputs.image-tag != '' && format('--set image.tag={0}', inputs.image-tag) || '' }} \
             --wait \
             --timeout 5m
 
+            
       # ── Deploy con Kubectl ─────────────────────────────────
       - name: Deploy with Kubectl
         if: ${{ inputs.deploy-tool == 'kubectl' }}
