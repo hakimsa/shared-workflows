@@ -1,239 +1,184 @@
-name: Reusable CI - Generic
+name: Reusable Deploy - Kubernetes
 
 on:
   workflow_call:
     inputs:
 
-      # ── Configuración general ──────────────────────────────
-      working-directory:
-        required: false
-        type: string
-        default: '.'
-
-      run-tests:
-        required: false
-        type: boolean
-        default: true
-
-      # ── Comandos personalizables por stack ─────────────────
-      install-command:
+      # ── Entorno ────────────────────────────────────────────
+      environment:
         required: true
         type: string
-        # Node  → npm ci
-        # Python→ pip install -r requirements.txt
-        # Java  → mvn dependency:resolve
+        # valores esperados: development | staging | production
 
-      lint-command:
+      # ── Imagen Docker ──────────────────────────────────────
+      image-name:
+        required: true
+        type: string
+        # ejemplo: ghcr.io/hakimsa/mi-app
+
+      image-tag:
+        required: false
+        type: string
+        default: ${{ github.sha }}
+
+      registry:
+        required: false
+        type: string
+        default: 'ghcr.io'
+        # ghcr.io | docker.io | registry.azurecr.io | ecr
+
+      # ── Herramienta de deploy ──────────────────────────────
+      deploy-tool:
+        required: false
+        type: string
+        default: 'helm'
+        # helm | kubectl
+
+      # ── Helm ──────────────────────────────────────────────
+      helm-chart-path:
+        required: false
+        type: string
+        default: './helm'
+
+      helm-release-name:
+        required: false
+        type: string
+        default: 'mi-app'
+
+      helm-namespace:
+        required: false
+        type: string
+        default: 'default'
+
+      helm-values-file:
         required: false
         type: string
         default: ''
-        # Node  → npm run lint
-        # Python→ flake8 . o ruff check .
-        # Java  → mvn checkstyle:check
+        # ejemplo: ./helm/values-production.yaml
 
-      test-command:
+      # ── Kubectl ───────────────────────────────────────────
+      kubectl-manifest-path:
+        required: false
+        type: string
+        default: './k8s'
+
+      kubectl-namespace:
+        required: false
+        type: string
+        default: 'default'
+
+      # ── Artifact del CI ───────────────────────────────────
+      artifact-name:
         required: false
         type: string
         default: ''
-        # Node  → npm test -- --coverage
-        # Python→ pytest --cov
-        # Java  → mvn test
-
-      build-command:
-        required: false
-        type: string
-        default: ''
-        # Node  → npm run build
-        # Python→ python -m build
-        # Java  → mvn package -DskipTests
-
-      artifact-path:
-        required: false
-        type: string
-        default: 'dist/'
-        # Node  → dist/
-        # Python→ dist/  o  build/
-        # Java  → target/*.jar
-
-      # ── Setup del entorno ──────────────────────────────────
-      setup-node:
-        required: false
-        type: boolean
-        default: false
-
-      node-version:
-        required: false
-        type: string
-        default: '20'
-
-      setup-python:
-        required: false
-        type: boolean
-        default: false
-
-      python-version:
-        required: false
-        type: string
-        default: '3.12'
-
-      setup-java:
-        required: false
-        type: boolean
-        default: false
-
-      java-version:
-        required: false
-        type: string
-        default: '21'
 
     secrets:
-      PACKAGE_TOKEN:
+      KUBE_CONFIG:
+        required: true        # kubeconfig en base64
+      REGISTRY_USERNAME:
+        required: false
+      REGISTRY_PASSWORD:
         required: false
 
     outputs:
-      artifact-name:
-        description: "Nombre del artefacto generado"
-        value: ${{ jobs.build.outputs.artifact-name }}
+      deploy-url:
+        description: "URL del despliegue"
+        value: ${{ jobs.deploy.outputs.deploy-url }}
 
 
 jobs:
 
-  lint:
+  deploy:
     runs-on: ubuntu-latest
-    if: ${{ inputs.lint-command != '' }}
-    defaults:
-      run:
-        working-directory: ${{ inputs.working-directory }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        if: ${{ inputs.setup-node }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-          cache: 'npm'
-
-      - name: Setup Python
-        if: ${{ inputs.setup-python }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ inputs.python-version }}
-          cache: 'pip'
-
-      - name: Setup Java
-        if: ${{ inputs.setup-java }}
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ inputs.java-version }}
-          distribution: 'temurin'
-          cache: 'maven'
-
-      - name: Install dependencies
-        run: ${{ inputs.install-command }}
-        env:
-          PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
-
-      - name: Run lint
-        run: ${{ inputs.lint-command }}
-
-
-  test:
-    runs-on: ubuntu-latest
-    if: ${{ inputs.run-tests && inputs.test-command != '' }}
-    needs: lint
-    defaults:
-      run:
-        working-directory: ${{ inputs.working-directory }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        if: ${{ inputs.setup-node }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-          cache: 'npm'
-
-      - name: Setup Python
-        if: ${{ inputs.setup-python }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ inputs.python-version }}
-          cache: 'pip'
-
-      - name: Setup Java
-        if: ${{ inputs.setup-java }}
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ inputs.java-version }}
-          distribution: 'temurin'
-          cache: 'maven'
-
-      - name: Install dependencies
-        run: ${{ inputs.install-command }}
-        env:
-          PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
-
-      - name: Run tests
-        run: ${{ inputs.test-command }}
-
-      - name: Upload coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage/
-
-
-  build:
-    runs-on: ubuntu-latest
-    needs: [lint, test]
-    if: ${{ !failure() && inputs.build-command != '' }}
+    environment: ${{ inputs.environment }}   # activa aprobacion manual en GitHub
     outputs:
-      artifact-name: ${{ steps.set-output.outputs.artifact-name }}
-    defaults:
-      run:
-        working-directory: ${{ inputs.working-directory }}
+      deploy-url: ${{ steps.get-url.outputs.url }}
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        if: ${{ inputs.setup-node }}
-        uses: actions/setup-node@v4
+      # ── Descargar artefacto del CI si existe ───────────────
+      - name: Download artifact
+        if: ${{ inputs.artifact-name != '' }}
+        uses: actions/download-artifact@v4
         with:
-          node-version: ${{ inputs.node-version }}
-          cache: 'npm'
+          name: ${{ inputs.artifact-name }}
+          path: ./artifact
 
-      - name: Setup Python
-        if: ${{ inputs.setup-python }}
-        uses: actions/setup-python@v5
+      # ── Login al registry ──────────────────────────────────
+      - name: Login to registry
+        uses: docker/login-action@v3
         with:
-          python-version: ${{ inputs.python-version }}
-          cache: 'pip'
+          registry: ${{ inputs.registry }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - name: Setup Java
-        if: ${{ inputs.setup-java }}
-        uses: actions/setup-java@v4
+      # ── Build y push de la imagen Docker ──────────────────
+      - name: Build and push image
+        uses: docker/build-push-action@v5
         with:
-          java-version: ${{ inputs.java-version }}
-          distribution: 'temurin'
-          cache: 'maven'
+          context: .
+          push: true
+          tags: |
+            ${{ inputs.image-name }}:${{ inputs.image-tag }}
+            ${{ inputs.image-name }}:latest
 
-      - name: Install dependencies
-        run: ${{ inputs.install-command }}
-        env:
-          PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
+      # ── Configurar kubectl ─────────────────────────────────
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
 
-      - name: Build
-        run: ${{ inputs.build-command }}
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
 
-      - name: Set artifact name
-        id: set-output
-        run: echo "artifact-name=build-${{ github.sha }}" >> $GITHUB_OUTPUT
+      # ── Deploy con Helm ────────────────────────────────────
+      - name: Setup Helm
+        if: ${{ inputs.deploy-tool == 'helm' }}
+        uses: azure/setup-helm@v3
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-${{ github.sha }}
-          path: ${{ inputs.working-directory }}/${{ inputs.artifact-path }}
-          retention-days: 7
+      - name: Deploy with Helm
+        if: ${{ inputs.deploy-tool == 'helm' }}
+        run: |
+          helm upgrade --install ${{ inputs.helm-release-name }} \
+            ${{ inputs.helm-chart-path }} \
+            --namespace ${{ inputs.helm-namespace }} \
+            --create-namespace \
+            --set image.repository=${{ inputs.image-name }} \
+            --set image.tag=${{ inputs.image-tag }} \
+            --set environment=${{ inputs.environment }} \
+            ${{ inputs.helm-values-file != '' && format('--values {0}', inputs.helm-values-file) || '' }} \
+            --wait \
+            --timeout 5m
+
+      # ── Deploy con Kubectl ─────────────────────────────────
+      - name: Deploy with Kubectl
+        if: ${{ inputs.deploy-tool == 'kubectl' }}
+        run: |
+          kubectl apply -f ${{ inputs.kubectl-manifest-path }} \
+            --namespace ${{ inputs.kubectl-namespace }}
+
+          kubectl set image deployment/* \
+            app=${{ inputs.image-name }}:${{ inputs.image-tag }} \
+            --namespace ${{ inputs.kubectl-namespace }}
+
+          kubectl rollout status deployment \
+            --namespace ${{ inputs.kubectl-namespace }} \
+            --timeout=5m
+
+      # ── Obtener URL del servicio ───────────────────────────
+      - name: Get service URL
+        id: get-url
+        run: |
+          URL=$(kubectl get svc ${{ inputs.helm-release-name }} \
+            --namespace ${{ inputs.helm-namespace }} \
+            -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+          echo "url=${URL}" >> $GITHUB_OUTPUT
+
+      # ── Rollback automatico si falla ───────────────────────
+      - name: Rollback on failure
+        if: ${{ failure() && inputs.deploy-tool == 'helm' }}
+        run: |
+          helm rollback ${{ inputs.helm-release-name }} \
+            --namespace ${{ inputs.helm-namespace }}
