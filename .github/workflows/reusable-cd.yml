@@ -3,71 +3,40 @@ name: Reusable Deploy - Kubernetes
 on:
   workflow_call:
     inputs:
-
-      # ── Entorno ────────────────────────────────────────────
       environment:
         required: true
         type: string
-        # valores esperados: development | staging | production
-
-      # ── Imagen Docker ──────────────────────────────────────
-      image-name:
-        required: true
-        type: string
-        # ejemplo: ghcr.io/hakimsa/mi-app
-
-      image-tag:
-        required: false
-        type: string
-        default: ${{ github.sha }}
-
-      registry:
-        required: false
-        type: string
-        default: 'ghcr.io'
-        # ghcr.io | docker.io | registry.azurecr.io | ecr
-
-      # ── Herramienta de deploy ──────────────────────────────
-      deploy-tool:
-        required: false
-        type: string
-        default: 'helm'
-        # helm | kubectl
-
-      # ── Helm ──────────────────────────────────────────────
-      helm-chart-path:
-        required: false
-        type: string
-        default: './helm'
+        # valores: dev | staging | production
 
       helm-release-name:
-        required: false
+        required: true
         type: string
-        default: 'mi-app'
 
       helm-namespace:
         required: false
         type: string
         default: 'default'
 
-      helm-values-file:
+      helm-charts-repo:
         required: false
         type: string
-        default: ''
-        # ejemplo: ./helm/values-production.yaml
+        default: 'hakimsa/helm-releases'
 
-      # ── Kubectl ───────────────────────────────────────────
-      kubectl-manifest-path:
+      helm-charts-ref:
         required: false
         type: string
-        default: './k8s'
+        default: 'main'
+
+      deploy-tool:
+        required: false
+        type: string
+        default: 'helm'
 
       kubectl-namespace:
         required: false
         type: string
         default: 'default'
 
-      # ── Artifact del CI ───────────────────────────────────
       artifact-name:
         required: false
         type: string
@@ -75,10 +44,8 @@ on:
 
     secrets:
       KUBE_CONFIG:
-        required: true        # kubeconfig en base64
-      REGISTRY_USERNAME:
-        required: false
-      REGISTRY_PASSWORD:
+        required: true
+      CHARTS_TOKEN:
         required: false
 
     outputs:
@@ -86,17 +53,26 @@ on:
         description: "URL del despliegue"
         value: ${{ jobs.deploy.outputs.deploy-url }}
 
-
 jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}   # activa aprobacion manual en GitHub
+    environment: ${{ inputs.environment }}
     outputs:
       deploy-url: ${{ steps.get-url.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+
+      # ── Checkout del repo de Helm charts ──────────────────
+      - name: Checkout Helm releases repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.helm-charts-repo }}
+          ref: ${{ inputs.helm-charts-ref }}
+          token: ${{ secrets.CHARTS_TOKEN || github.token }}
+          path: ./helm-releases
 
       # ── Descargar artefacto del CI si existe ───────────────
       - name: Download artifact
@@ -105,24 +81,6 @@ jobs:
         with:
           name: ${{ inputs.artifact-name }}
           path: ./artifact
-
-      # ── Login al registry ──────────────────────────────────
-      - name: Login to registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ inputs.registry }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
-
-      # ── Build y push de la imagen Docker ──────────────────
-      - name: Build and push image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ inputs.image-name }}:${{ inputs.image-tag }}
-            ${{ inputs.image-name }}:latest
 
       # ── Configurar kubectl ─────────────────────────────────
       - name: Setup kubectl
@@ -142,13 +100,10 @@ jobs:
         if: ${{ inputs.deploy-tool == 'helm' }}
         run: |
           helm upgrade --install ${{ inputs.helm-release-name }} \
-            ${{ inputs.helm-chart-path }} \
+            ./helm-releases \
             --namespace ${{ inputs.helm-namespace }} \
             --create-namespace \
-            --set image.repository=${{ inputs.image-name }} \
-            --set image.tag=${{ inputs.image-tag }} \
-            --set environment=${{ inputs.environment }} \
-            ${{ inputs.helm-values-file != '' && format('--values {0}', inputs.helm-values-file) || '' }} \
+            --values ./helm-releases/${{ inputs.environment }}/values.yaml \
             --wait \
             --timeout 5m
 
@@ -156,11 +111,7 @@ jobs:
       - name: Deploy with Kubectl
         if: ${{ inputs.deploy-tool == 'kubectl' }}
         run: |
-          kubectl apply -f ${{ inputs.kubectl-manifest-path }} \
-            --namespace ${{ inputs.kubectl-namespace }}
-
-          kubectl set image deployment/* \
-            app=${{ inputs.image-name }}:${{ inputs.image-tag }} \
+          kubectl apply -f ./helm-releases/${{ inputs.environment }}/ \
             --namespace ${{ inputs.kubectl-namespace }}
 
           kubectl rollout status deployment \
@@ -173,10 +124,11 @@ jobs:
         run: |
           URL=$(kubectl get svc ${{ inputs.helm-release-name }} \
             --namespace ${{ inputs.helm-namespace }} \
-            -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+            -o jsonpath='{.status.loadBalancer.ingress[0].ip}' \
+            2>/dev/null || echo "pending")
           echo "url=${URL}" >> $GITHUB_OUTPUT
 
-      # ── Rollback automatico si falla ───────────────────────
+      # ── Rollback si falla ──────────────────────────────────
       - name: Rollback on failure
         if: ${{ failure() && inputs.deploy-tool == 'helm' }}
         run: |
