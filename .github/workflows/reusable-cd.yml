@@ -26,6 +26,24 @@ on:
         required: false
         type: string
         default: 'main'
+      
+      image-name:                  
+        required: false
+        type: string
+        default: ''
+
+      image-tag:                   
+        required: false
+        type: string
+        default: ${{ github.sha }}
+
+
+      helm-values-file:
+        required: false
+        type: string
+        default: ''
+        # si está vacío usa la carpeta del entorno: {environment}/values.yaml
+        # si se pasa usa ese archivo: mi-app/values-staging.yaml
 
       deploy-tool:
         required: false
