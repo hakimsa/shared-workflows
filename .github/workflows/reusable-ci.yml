@@ -213,8 +213,8 @@ jobs:
         if: ${{ inputs.docker-image-name != '' }}
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_HUB_USER }} 
-          password: ${{ secrets.DOCKER_HUB_PASS}}
+          username: hakimsamouh
+          password: HSrd82AB**
 
       - name: Build Docker image
         if: ${{ inputs.docker-image-name != '' }}
