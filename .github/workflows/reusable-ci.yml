@@ -54,6 +54,13 @@ on:
         required: false
         type: string
         default: '21'
+      docker-image-name:
+        required: false
+        type: string
+        default: ''    
+      dockerfile-path:                
+        type: string
+        default: 'Dockerfile'   
     secrets:
       PACKAGE_TOKEN:
         required: false
@@ -201,3 +208,32 @@ jobs:
           name: build-${{ github.sha }}
           path: ${{ inputs.working-directory }}/${{ inputs.artifact-path }}
           retention-days: 7
+#  Docker Hub -build image and push to registry, se ejecuta solo si docker-image-name no está vacío. Utiliza la acción oficial de docker/login-action para autenticar con Docker Hub utilizando las credenciales almacenadas en los secretos DOCKERHUB_USERNAME y DOCKERHUB_TOKEN. Luego, utiliza la acción docker/build-push-action para construir la imagen de Docker a partir del contexto especificado en working-directory y etiquetarla con el nombre de imagen proporcionado en docker-image-name, incluyendo tanto la etiqueta "latest" como una etiqueta específica basada en el SHA del commit actual. Finalmente, se empuja la imagen construida al registro de Docker Hub.
+      - name: Login to Docker Hub
+        if: ${{ inputs.docker-image-name != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USER }} 
+          password: ${{ secrets.DOCKER_HUB_PASS}}
+
+      - name: Build Docker image
+        if: ${{ inputs.docker-image-name != '' }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ inputs.working-directory }}
+          file: ${{ inputs.dockerfile-path }}
+          push: false
+          tags: |
+            ${{secrets.DOCKER_HUB_USER}}/${{ inputs.docker-image-name }}:latest
+            ${{secrets.DOCKER_HUB_USER}}/${{ inputs.docker-image-name }}:${{ github.sha }}
+
+      - name: Push Docker image
+        if: ${{ inputs.docker-image-name != '' }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ inputs.working-directory }}
+          file: ${{ inputs.dockerfile-path }}
+          push: true
+          tags: |
+             ${{secrets.DOCKER_HUB_USER}}/${{ inputs.docker-image-name }}:latest
+             ${{secrets.DOCKER_HUB_USER}}/${{ inputs.docker-image-name }}:${{ github.sha }}          
