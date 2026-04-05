@@ -88,7 +88,7 @@ jobs:
         with:
           repository: ${{ inputs.helm-charts-repo }}
           ref: ${{ inputs.helm-charts-ref }}
-          token: ${{ secrets.CHARTS_TOKEN || github.token }}
+          token: ${{ secrets.CHARTS_TOKEN }} 
           path: ./helm-releases
 
       - name: Download artifact
