@@ -60,7 +60,8 @@ on:
         default: ''    
       dockerfile-path:                
         type: string
-        default: 'Dockerfile'   
+        default: 'Dockerfile'
+           
     secrets:
       KUBE_CONFIG:
           required: false
@@ -70,6 +71,8 @@ on:
         required: false
       PACKAGE_TOKEN:
         required: false
+      SONAR_TOKEN:             
+        required: false  
     outputs:
       artifact-name:
         description: "Nombre del artefacto generado"
@@ -118,7 +121,15 @@ jobs:
       - name: Run lint
         run: ${{ inputs.lint-command }}
 
-
+      - name: SonarCloud analysis
+        run: |
+          mvn sonar:sonar \
+            -Dsonar.projectKey=hakimsa_bakend-mgt \
+            -Dsonar.organization=hakimsa-1 \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.token=${{ secrets.SONAR_TOKEN }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
 
 # test unitarios, de integración o end-to-end dependiendo del comando configurado en test-command. Solo se ejecuta si run-tests es true y test-command no está vacío. Además, se asegura de que lint-command no esté vacío para evitar ejecutar tests si no se ha configurado un comando de linting.
@@ -251,7 +262,7 @@ jobs:
           tags: |
             ${{secrets.DOCKERHUB_USERNAME}}/${{ inputs.docker-image-name }}:latest
             ${{secrets.DOCKERHUB_USERNAME}}/${{ inputs.docker-image-name }}:${{ github.sha }}
-            
+
 #Push Docker image, se ejecuta solo si docker-image-name no está vacío. Utiliza la acción docker/build-push-action para empujar la imagen de Docker previamente construida al registro de Docker Hub, utilizando las mismas etiquetas que se asignaron durante el paso de construcción.
       - name: Push Docker image
         if: ${{ inputs.docker-image-name != '' }}
