@@ -110,7 +110,12 @@ jobs:
       - name: Setup Helm
         if: ${{ inputs.deploy-tool == 'helm' }}
         uses: azure/setup-helm@v3
-
+      - name: Debug helm-releases structure
+        run: |
+          echo "=== contenido raíz ==="
+          ls -la ./helm-releases/
+          echo "=== estructura completa ==="
+          find ./helm-releases -type f
       - name: Deploy with Helm
         if: ${{ inputs.deploy-tool == 'helm' }}
         run: |
