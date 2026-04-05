@@ -9,8 +9,9 @@ on:
       runner:
         required: false
         type: string
-        default: 'ubuntu-latest'      
-      # ... resto de inputs
+        default: 'ubuntu-latest'     
+
+   
       helm-release-name:
         required: true
         type: string
@@ -116,6 +117,7 @@ jobs:
           ls -la ./helm-releases/
           echo "=== estructura completa ==="
           find ./helm-releases -type f
+          
       - name: Deploy with Helm
         if: ${{ inputs.deploy-tool == 'helm' }}
         run: |

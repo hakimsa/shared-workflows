@@ -82,7 +82,7 @@ on:
 
 jobs:
 #chequeo de código con linters, se ejecuta solo si lint-command no está vacío. Además, se asegura de que se haya configurado al menos un entorno de desarrollo (Node.js, Python o Java) para evitar ejecutar linters sin un entorno adecuado.
-  lint:
+  check-with-lint:
     runs-on: ubuntu-latest
     if: ${{ inputs.lint-command != '' }}
     defaults:
@@ -121,9 +121,9 @@ jobs:
       - name: Run lint
         run: ${{ inputs.lint-command }}
 
-  sonar:
+  check-with-sonar:
     runs-on: ubuntu-latest
-    needs: lint
+    needs: check-with-lint
     if: ${{ inputs.lint-command != '' }}
     defaults:
       run:
@@ -156,9 +156,9 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
 # test unitarios, de integración o end-to-end dependiendo del comando configurado en test-command. Solo se ejecuta si run-tests es true y test-command no está vacío. Además, se asegura de que lint-command no esté vacío para evitar ejecutar tests si no se ha configurado un comando de linting.
-  test:
+  test-and-coverage:
     runs-on: ubuntu-latest
-    needs: [sonar, lint] 
+    needs: [check-with-sonar, check-with-lint] 
     if: ${{ inputs.run-tests && inputs.test-command != '' && inputs.lint-command != '' }}
     defaults:
       run:
@@ -207,9 +207,9 @@ jobs:
 
 
 #build images 
-  build:
+  build-and-push:
     runs-on: ubuntu-latest
-    needs: [lint, sonar, test] 
+    needs: [check-with-lint, check-with-sonar, test-and-coverage] 
     if: ${{ !failure() && !cancelled() && inputs.build-command != '' }}
     outputs:
       artifact-name: ${{ steps.set-output.outputs.artifact-name }}
