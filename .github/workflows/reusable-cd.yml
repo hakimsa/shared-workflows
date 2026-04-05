@@ -6,7 +6,11 @@ on:
       environment:
         required: true
         type: string
-
+      runner:
+        required: false
+        type: string
+        default: 'ubuntu-latest'      
+      # ... resto de inputs
       helm-release-name:
         required: true
         type: string
@@ -70,7 +74,7 @@ on:
 jobs:
 
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     environment: ${{ inputs.environment }}
     outputs:
       deploy-url: ${{ steps.get-url.outputs.url }}
