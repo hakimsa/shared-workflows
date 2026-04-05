@@ -158,7 +158,7 @@ jobs:
 # test unitarios, de integración o end-to-end dependiendo del comando configurado en test-command. Solo se ejecuta si run-tests es true y test-command no está vacío. Además, se asegura de que lint-command no esté vacío para evitar ejecutar tests si no se ha configurado un comando de linting.
   test:
     runs-on: ubuntu-latest
-    needs: lint
+    needs: [sonar, lint] 
     if: ${{ inputs.run-tests && inputs.test-command != '' && inputs.lint-command != '' }}
     defaults:
       run:
@@ -209,7 +209,7 @@ jobs:
 #build images 
   build:
     runs-on: ubuntu-latest
-    needs: [lint, test] 
+    needs: [lint, sonar, test] 
     if: ${{ !failure() && !cancelled() && inputs.build-command != '' }}
     outputs:
       artifact-name: ${{ steps.set-output.outputs.artifact-name }}
