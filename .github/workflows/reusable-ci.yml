@@ -82,14 +82,7 @@ on:
         required: false
       SONAR_TOKEN:
         required: false
-      DB_URL:               
-        required: false
-      DB_USER:              
-        required: false
-      DB_PASSWORD:          
-        required: false
-      SECURITY_PASSWORD:    
-        required: false
+    
     outputs:
       artifact-name:
         description: "Nombre del artefacto generado"
