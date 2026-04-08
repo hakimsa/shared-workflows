@@ -1,5 +1,5 @@
 name: Reusable CI - Generic
-#pipeline de integración continua genérica que se puede reutilizar en diferentes proyectos. Permite configurar comandos de instalación, linting, testing y build, así como la configuración de entornos de desarrollo para Node.js, Python y Java. Además, maneja la generación y carga de artefactos de build y reportes de cobertura.
+
 on:
   workflow_call:
     inputs:
@@ -7,6 +7,10 @@ on:
         required: false
         type: string
         default: '.'
+      environment:                    # ← AÑADIDO
+        required: false
+        type: string
+        default: 'dev'
       run-tests:
         required: false
         type: boolean
@@ -57,31 +61,35 @@ on:
       docker-image-name:
         required: false
         type: string
-        default: ''    
-      dockerfile-path:                
+        default: ''
+      dockerfile-path:
+        required: false
         type: string
         default: 'Dockerfile'
-           
+      image-tag:
+        required: false
+        type: string
+        default: ''
+
     secrets:
       KUBE_CONFIG:
-          required: false
-      DOCKERHUB_USERNAME:        
         required: false
-      DOCKERHUB_TOKEN:           
+      DOCKERHUB_USERNAME:
+        required: false
+      DOCKERHUB_TOKEN:
         required: false
       PACKAGE_TOKEN:
         required: false
-      SONAR_TOKEN:             
-        required: false  
+      SONAR_TOKEN:
+        required: false
+
     outputs:
       artifact-name:
         description: "Nombre del artefacto generado"
-        value: ${{ jobs.build.outputs.artifact-name }}
-
+        value: ${{ jobs.build-and-push.outputs.artifact-name }}
 
 
 jobs:
-#chequeo de código con linters, se ejecuta solo si lint-command no está vacío. Además, se asegura de que se haya configurado al menos un entorno de desarrollo (Node.js, Python o Java) para evitar ejecutar linters sin un entorno adecuado.
   check-with-lint:
     runs-on: ubuntu-latest
     if: ${{ inputs.lint-command != '' }}
@@ -121,6 +129,7 @@ jobs:
       - name: Run lint
         run: ${{ inputs.lint-command }}
 
+
   check-with-sonar:
     runs-on: ubuntu-latest
     needs: check-with-lint
@@ -131,7 +140,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0              # necesario para análisis completo
+          fetch-depth: 0
 
       - name: Setup Java
         if: ${{ inputs.setup-java }}
@@ -155,10 +164,10 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-# test unitarios, de integración o end-to-end dependiendo del comando configurado en test-command. Solo se ejecuta si run-tests es true y test-command no está vacío. Además, se asegura de que lint-command no esté vacío para evitar ejecutar tests si no se ha configurado un comando de linting.
+
   test-and-coverage:
     runs-on: ubuntu-latest
-    needs: [check-with-sonar, check-with-lint] 
+    needs: [check-with-sonar, check-with-lint]
     if: ${{ inputs.run-tests && inputs.test-command != '' && inputs.lint-command != '' }}
     defaults:
       run:
@@ -166,7 +175,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-#setup de nodejs
       - name: Setup Node.js
         if: ${{ inputs.setup-node }}
         uses: actions/setup-node@v4
@@ -174,7 +182,6 @@ jobs:
           node-version: ${{ inputs.node-version }}
           cache: 'npm'
 
-#setup de python
       - name: Setup Python
         if: ${{ inputs.setup-python }}
         uses: actions/setup-python@v5
@@ -182,7 +189,6 @@ jobs:
           python-version: ${{ inputs.python-version }}
           cache: 'pip'
 
-#setup de java
       - name: Setup Java
         if: ${{ inputs.setup-java }}
         uses: actions/setup-java@v4
@@ -206,10 +212,9 @@ jobs:
           path: coverage/
 
 
-#build images 
   build-and-push:
     runs-on: ubuntu-latest
-    needs: [check-with-lint, check-with-sonar, test-and-coverage] 
+    needs: [check-with-lint, check-with-sonar, test-and-coverage]
     if: ${{ !failure() && !cancelled() && inputs.build-command != '' }}
     outputs:
       artifact-name: ${{ steps.set-output.outputs.artifact-name }}
@@ -218,21 +223,21 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v4
-#step para configurar Node.js, se ejecuta solo si setup-node es true. Utiliza la acción oficial de setup-node para configurar la versión de Node.js especificada en node-version y habilitar el cache de npm para acelerar la instalación de dependencias en futuras ejecuciones.
+
       - name: Setup Node.js
         if: ${{ inputs.setup-node }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
           cache: 'npm'
-#step para configurar Python, se ejecuta solo si setup-python es true. Utiliza la acción oficial de setup-python para configurar la versión de Python especificada en python-version y habilitar el cache de pip para acelerar la instalación de dependencias en futuras ejecuciones.
+
       - name: Setup Python
         if: ${{ inputs.setup-python }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
           cache: 'pip'
-#step para configurar Java, se ejecuta solo si setup-java es true. Utiliza la acción oficial de setup-java para configurar la versión de Java especificada en java-version, utilizando la distribución Temurin y habilitando el cache de Maven para acelerar la construcción del proyecto en futuras ejecuciones.
+
       - name: Setup Java
         if: ${{ inputs.setup-java }}
         uses: actions/setup-java@v4
@@ -246,8 +251,6 @@ jobs:
         env:
           PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
 
-
-#build artifact, se ejecuta solo si build-command no está vacío. Además, se asegura de que los pasos de linting y testing hayan sido exitosos antes de ejecutar el comando de build para evitar construir artefactos si hay errores en el código o en los tests.
       - name: Build
         run: ${{ inputs.build-command }}
 
@@ -262,32 +265,30 @@ jobs:
           path: ${{ inputs.working-directory }}/${{ inputs.artifact-path }}
           retention-days: 7
 
-#  Docker Hub -build image and push to registry, se ejecuta solo si docker-image-name no está vacío. Utiliza la acción oficial de docker/login-action para autenticar con Docker Hub utilizando las credenciales almacenadas en los secretos DOCKERHUB_USERNAME y DOCKERHUB_TOKEN. Luego, utiliza la acción docker/build-push-action para construir la imagen de Docker a partir del contexto especificado en working-directory y etiquetarla con el nombre de imagen proporcionado en docker-image-name, incluyendo tanto la etiqueta "latest" como una etiqueta específica basada en el SHA del commit actual. Finalmente, se empuja la imagen construida al registro de Docker Hub.
-      - name: Debug secrets
+      # ← PRIMERO calcular el tag
+      - name: Set image tag
+        id: set-tag
         if: ${{ inputs.docker-image-name != '' }}
         run: |
-          echo "Username is empty: ${{ secrets.DOCKERHUB_USERNAME == '' }}"
-          echo "Token is empty: ${{ secrets.DOCKERHUB_TOKEN == '' }}"
+          if [ "${{ inputs.environment }}" == "production" ]; then
+            if [ -z "${{ inputs.image-tag }}" ]; then
+              echo "❌ ERROR: image-tag is required for production"
+              exit 1
+            fi
+            echo "tag=${{ inputs.image-tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Login to Docker Hub
         if: ${{ inputs.docker-image-name != '' }}
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }} 
-          password: ${{ secrets.DOCKERHUB_TOKEN}}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build Docker image
-        if: ${{ inputs.docker-image-name != '' }}
-        uses: docker/build-push-action@v5
-        with:
-          context: ${{ inputs.working-directory }}
-          file: ${{ inputs.dockerfile-path }}
-          push: false
-          tags: |
-            ${{secrets.DOCKERHUB_USERNAME}}/${{ inputs.docker-image-name }}:latest
-            ${{secrets.DOCKERHUB_USERNAME}}/${{ inputs.docker-image-name }}:${{ github.sha }}
-
-#Push Docker image, se ejecuta solo si docker-image-name no está vacío. Utiliza la acción docker/build-push-action para empujar la imagen de Docker previamente construida al registro de Docker Hub, utilizando las mismas etiquetas que se asignaron durante el paso de construcción.
-      - name: Push Docker image
+      # ← UN solo step que hace build + push
+      - name: Build and Push Docker image
         if: ${{ inputs.docker-image-name != '' }}
         uses: docker/build-push-action@v5
         with:
@@ -295,5 +296,5 @@ jobs:
           file: ${{ inputs.dockerfile-path }}
           push: true
           tags: |
-             ${{secrets.DOCKERHUB_USERNAME}}/${{ inputs.docker-image-name }}:latest
-             ${{secrets.DOCKERHUB_USERNAME}}/${{ inputs.docker-image-name }}:${{ github.sha }}          
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.docker-image-name }}:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.docker-image-name }}:${{ steps.set-tag.outputs.tag }}
