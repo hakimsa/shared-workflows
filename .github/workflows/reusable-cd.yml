@@ -128,6 +128,10 @@ jobs:
             --values ./helm-releases/${{ inputs.helm-values-file != '' && inputs.helm-values-file || format('{0}/values.yaml', inputs.environment) }} \
             ${{ inputs.image-name != '' && format('--set image.repository={0}', inputs.image-name) || '' }} \
             ${{ inputs.image-tag != '' && format('--set image.tag={0}', inputs.image-tag) || '' }} \
+               --set secret.dbUrl="${{ secrets.DB_URL }}" \
+               --set secret.dbUser="${{ secrets.DB_USER }}" \
+               --set secret.dbPassword="${{ secrets.DB_PASSWORD }}" \
+               --set secret.securityPassword="${{ secrets.SECURITY_PASSWORD }}" \
             --wait \
             --timeout 5m
 
