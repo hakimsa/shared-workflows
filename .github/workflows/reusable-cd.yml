@@ -66,6 +66,14 @@ on:
         required: true
       CHARTS_TOKEN:
         required: false
+      DB_URL:               
+        required: false
+      DB_USER:              
+        required: false
+      DB_PASSWORD:          
+        required: false
+      SECURITY_PASSWORD:    
+        required: false
 
     outputs:
       deploy-url:
