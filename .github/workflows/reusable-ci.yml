@@ -154,13 +154,20 @@ jobs:
         run: ${{ inputs.install-command }}
         env:
           PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
+      - name: Build for Sonar
+        if: ${{ inputs.setup-java }}
+        run: mvn clean verify -DskipTests    
 
       - name: SonarCloud analysis
-        run: mvn sonar:sonar
-          -Dsonar.projectKey=hakimsa_bakend-mgt
-          -Dsonar.organization=hakimsa
-          -Dsonar.java.binaries=target/classes
-          -Dsonar.sources=src/main/java
+        uses: SonarSource/sonarqube-scan-action@v5
+        with:
+          projectBaseDir: ${{ inputs.working-directory }}
+          args: >
+             -Dsonar.projectKey=hakimsa_bakend-mgt
+             -Dsonar.organization=hakimsa
+             -Dsonar.java.binaries=target/classes
+             -Dsonar.sources=src/main/java
+             -Dsonar.tests=src/test/java
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
