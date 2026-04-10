@@ -161,7 +161,6 @@ jobs:
           -Dsonar.organization=hakimsa
           -Dsonar.java.binaries=target/classes
           -Dsonar.sources=src/main/java
-          -Dsonar.token=${{ secrets.SONAR_TOKEN }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
