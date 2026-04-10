@@ -165,4 +165,4 @@ jobs:
         if: ${{ failure() && inputs.deploy-tool == 'helm' }}
         run: |
           helm rollback ${{ inputs.helm-release-name }} \
-            --namespace ${{ inputs.helm-namespace }}
+            --namespace ${{ inputs.helm-namespace }}º 
