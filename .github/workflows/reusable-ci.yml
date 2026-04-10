@@ -164,7 +164,7 @@ jobs:
           projectBaseDir: ${{ inputs.working-directory }}
           args: >
              -Dsonar.projectKey=hakimsa_bakend-mgt
-             -Dsonar.organization=hakimsa1
+             -Dsonar.organization=hakimsa-1
              -Dsonar.java.binaries=target/classes
              -Dsonar.sources=src/main/java
              -Dsonar.tests=src/test/java
