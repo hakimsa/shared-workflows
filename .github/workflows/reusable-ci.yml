@@ -164,7 +164,7 @@ jobs:
           projectBaseDir: ${{ inputs.working-directory }}
           args: >
              -Dsonar.projectKey=hakimsa_bakend-mgt
-             -Dsonar.organization=hakimsa
+             -Dsonar.organization=hakimsa1
              -Dsonar.java.binaries=target/classes
              -Dsonar.sources=src/main/java
              -Dsonar.tests=src/test/java
@@ -279,7 +279,7 @@ jobs:
         run: |
           if [ "${{ inputs.environment }}" == "production" ]; then
             if [ -z "${{ inputs.image-tag }}" ]; then
-              echo "❌ ERROR: image-tag is required for production"
+              echo "ERROR: image-tag is required for production"
               exit 1
             fi
             echo "tag=${{ inputs.image-tag }}" >> $GITHUB_OUTPUT
