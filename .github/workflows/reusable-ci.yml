@@ -7,7 +7,7 @@ on:
         required: false
         type: string
         default: '.'
-      environment:                    # ← AÑADIDO
+      environment:
         required: false
         type: string
         default: 'dev'
@@ -82,7 +82,7 @@ on:
         required: false
       SONAR_TOKEN:
         required: false
-    
+
     outputs:
       artifact-name:
         description: "Nombre del artefacto generado"
@@ -90,6 +90,8 @@ on:
 
 
 jobs:
+
+  # ── 1. LINT ──────────────────────────────────────────────
   check-with-lint:
     runs-on: ubuntu-latest
     if: ${{ inputs.lint-command != '' }}
@@ -130,51 +132,11 @@ jobs:
         run: ${{ inputs.lint-command }}
 
 
-  check-with-sonar:
-    runs-on: ubuntu-latest
-    needs: check-with-lint
-    if: ${{ inputs.lint-command != '' }}
-    defaults:
-      run:
-        working-directory: ${{ inputs.working-directory }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Java
-        if: ${{ inputs.setup-java }}
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ inputs.java-version }}
-          distribution: 'temurin'
-          cache: 'maven'
-      - name: Build for Sonar
-        if: ${{ inputs.setup-java }}
-        run: mvn clean verify -DskipTests
-
-      - name: SonarCloud analysis
-        if: ${{ inputs.setup-java }}
-        run: |
-          mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-            -Dsonar.projectKey=hakimsa_bakend-mgt \
-            -Dsonar.organization=hakimsa \
-            -Dsonar.java.binaries=target/classes \
-            -Dsonar.sources=src/main/java \
-            -Dsonar.token=${{ secrets.SONAR_TOKEN }} \
-            -Dsonar.tests=src/test/java \
-            -Dsonar.host.url=https://sonarcloud.io
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://sonarcloud.io
-         
-          
-      
-
+  # ── 2. BUILD + TESTS ─────────────────────────────────────
   test-and-coverage:
     runs-on: ubuntu-latest
-    needs: [check-with-sonar, check-with-lint]
-    if: ${{ inputs.run-tests && inputs.test-command != '' && inputs.lint-command != '' }}
+    needs: check-with-lint
+    if: ${{ !failure() && !cancelled() && inputs.run-tests && inputs.test-command != '' }}
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -218,9 +180,55 @@ jobs:
           path: coverage/
 
 
+  # ── 3. SONAR ─────────────────────────────────────────────
+  check-with-sonar:
+    runs-on: ubuntu-latest
+    needs: test-and-coverage
+    if: ${{ !failure() && !cancelled() }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        if: ${{ inputs.setup-java }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Install dependencies
+        run: ${{ inputs.install-command }}
+        env:
+          PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
+
+      - name: Build and test for Sonar
+        if: ${{ inputs.setup-java }}
+        run: mvn clean verify
+
+      - name: SonarCloud analysis
+        if: ${{ inputs.setup-java }}
+        run: |
+          mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+            -Dsonar.projectKey=hakimsa_bakend-mgt \
+            -Dsonar.organization=hakimsa \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.token=${{ secrets.SONAR_TOKEN }} \
+            -Dsonar.java.binaries=target/classes \
+            -Dsonar.sources=src/main/java \
+            -Dsonar.tests=src/test/java
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+
+  # ── 4. BUILD IMAGE DOCKER + PUSH ─────────────────────────
   build-and-push:
     runs-on: ubuntu-latest
-    needs: [check-with-lint, check-with-sonar, test-and-coverage]
+    needs: [check-with-lint, test-and-coverage, check-with-sonar]
     if: ${{ !failure() && !cancelled() && inputs.build-command != '' }}
     outputs:
       artifact-name: ${{ steps.set-output.outputs.artifact-name }}
@@ -271,7 +279,6 @@ jobs:
           path: ${{ inputs.working-directory }}/${{ inputs.artifact-path }}
           retention-days: 7
 
-      # ← PRIMERO calcular el tag
       - name: Set image tag
         id: set-tag
         if: ${{ inputs.docker-image-name != '' }}
@@ -293,7 +300,6 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # ← UN solo step que hace build + push
       - name: Build and Push Docker image
         if: ${{ inputs.docker-image-name != '' }}
         uses: docker/build-push-action@v5
