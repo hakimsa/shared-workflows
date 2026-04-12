@@ -213,14 +213,8 @@ jobs:
       - name: SonarCloud analysis
         if: ${{ inputs.setup-java }}
         run: |
-          mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-            -Dsonar.projectKey=hakimsa_bakend-mgt \
-            -Dsonar.organization=hakimsa \
-            -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.token=${{ secrets.SONAR_TOKEN }} \
-            -Dsonar.java.binaries=target/classes \
-            -Dsonar.sources=src/main/java \
-            -Dsonar.tests=src/test/java
+          mvn verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+            -Dsonar.projectKey=hakimsa_bakend-mgt
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
