@@ -165,6 +165,7 @@ jobs:
           -Dsonar.java.binaries=target/classes \
           -Dsonar.sources=src/main/java \
           -Dsonar.tests=src/test/java
+          -Dsonar.URL=https://sonarcloud.io
           
       
 
