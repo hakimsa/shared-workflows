@@ -209,7 +209,12 @@ jobs:
       - name: Build and test for Sonar
         if: ${{ inputs.setup-java }}
         run: mvn clean verify
-
+      - name: Debug Sonar token
+        run: |
+         echo "Token empty: ${{ secrets.SONAR_TOKEN == '' }}"
+         echo "Token length: ${#SONAR_TOKEN}"
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       - name: SonarCloud analysis
         if: ${{ inputs.setup-java }}
         run: |
