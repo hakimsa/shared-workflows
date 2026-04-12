@@ -165,21 +165,6 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
-      - name: SonarCloud analysis
-        run: ${{ inputs.install-command }}
-        env:
-          PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://sonarcloud.io  
-      - name: Build for Sonar
-        if: ${{ inputs.setup-java }}
-        run: mvn clean verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-          -Dsonar.token=${{ secrets.SONAR_TOKEN }} \
-          -Dsonar.organization=hakimsa-1 \
-          -Dsonar.projectKey=hakimsa_bakend-mgt \
-          -Dsonar.java.binaries=target/classes \
-          -Dsonar.sources=src/main/java \
-          -Dsonar.tests=src/test/java
          
           
       
