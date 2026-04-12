@@ -216,7 +216,9 @@ jobs:
           mvn verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
             -Dsonar.projectKey=hakimsa_bakend-mgt
             -Dsonar.host.url=https://sonarcloud.io
-            -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+            -Dsonar.organization=hakimsa-1
+            -Dsonar.Token=${{ secrets.SONAR_TOKEN }}
+      
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
