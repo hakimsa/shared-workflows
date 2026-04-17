@@ -1,0 +1,37 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize]
+
+jobs:
+  # Valida la PR usando el workflow reutilizable
+  ci:
+    uses: hakimsa/shared-workflows/.github/workflows/reusable-ci.yml@main
+    with:
+      # Build Configuration
+      install-command: 'mvn clean install'
+      build-command: 'mvn clean package'
+      test-command: 'mvn test'
+      lint-command: 'mvn checkstyle:check'
+      
+      # Environment
+      setup-java: true
+      java-version: '21'
+      
+      # No hacer build de Docker en PRs (solo validación)
+      docker-image-name: ''
+      
+    secrets:
+      PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # Marca la PR como validated si todo pasó
+  mark-success:
+    needs: ci
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Mark PR as validated
+        run: echo "✅ PR validation passed - Ready for merge!"

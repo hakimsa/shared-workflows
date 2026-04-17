@@ -1,0 +1,55 @@
+name: Auto Merge PR
+
+on:
+  workflow_run:
+    workflows: ["PR Validation"]
+    types: [completed]
+    branches: [develop]
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    
+    # Solo auto-mergear si PR Validation fue exitoso
+    if: github.event.workflow_run.conclusion == 'success'
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Obtener el número de la PR
+      - name: Get PR number
+        id: get-pr
+        run: |
+          PR_NUMBER=$(gh pr list \
+            --state open \
+            --base develop \
+            --head ${{ github.event.workflow_run.head_branch }} \
+            --json number \
+            --jq '.[0].number')
+          echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Auto merge a develop con squash
+      - name: Auto merge PR to develop
+        if: steps.get-pr.outputs.pr_number != ''
+        run: |
+          gh pr merge ${{ steps.get-pr.outputs.pr_number }} \
+            --auto \
+            --squash \
+            --delete-branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Notificar éxito
+      - name: PR auto-merged successfully
+        if: steps.get-pr.outputs.pr_number != ''
+        run: echo "✅ PR #${{ steps.get-pr.outputs.pr_number }} auto-merged to develop"
+
+      # Log si no encontró PR
+      - name: No PR found
+        if: steps.get-pr.outputs.pr_number == ''
+        run: echo "⚠️ No open PR found for branch ${{ github.event.workflow_run.head_branch }}"

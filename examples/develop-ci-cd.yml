@@ -1,0 +1,106 @@
+name: Develop CI/CD
+
+on:
+  push:
+    branches: [develop]
+  
+  # También ejecutar cuando se complete auto-merge
+  workflow_run:
+    workflows: ["Auto Merge PR"]
+    types: [completed]
+    branches: [develop]
+
+jobs:
+  # Ejecutar checks + tests + build + push sobre toda develop
+  ci:
+    uses: hakimsa/shared-workflows/.github/workflows/reusable-ci.yml@main
+    with:
+      # Build Configuration
+      install-command: 'mvn clean install'
+      build-command: 'mvn clean package'
+      test-command: 'mvn test'
+      lint-command: 'mvn checkstyle:check'
+      
+      # Environment
+      setup-java: true
+      java-version: '21'
+      
+      # AHORA SÍ: Build y push de Docker a Docker Hub
+      docker-image-name: 'hakimsa/bakend-mgt'
+      docker-registry: 'docker'
+      dockerfile-path: 'Dockerfile'
+      image-tag: 'develop-${{ github.sha }},develop-latest'
+      environment: 'staging'
+      
+    secrets:
+      PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  # Notificar resultado del build
+  notify-build:
+    needs: ci
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Build completed successfully
+        if: success()
+        run: |
+          echo "## 🎉 Develop Build Completed Successfully"
+          echo ""
+          echo "### Build Info"
+          echo "- **Branch:** develop"
+          echo "- **Commit:** ${{ github.sha }}"
+          echo "- **Status:** ✅ SUCCESS"
+          echo ""
+          echo "### Artifacts"
+          echo "- **Build Artifact:** ${{ needs.ci.outputs.artifact-name }}"
+          echo "- **Docker Image:** ${{ needs.ci.outputs.image-url }}"
+          echo "- **Image Digest:** \`${{ needs.ci.outputs.image-digest }}\`"
+          echo ""
+          echo "### Next Steps"
+          echo "✅ Create release PR from develop to main (if needed)"
+          echo "✅ Trigger deployment to staging environment"
+
+      - name: Build failed
+        if: failure()
+        run: |
+          echo "## ❌ Develop Build Failed"
+          echo ""
+          echo "Please review the logs above and fix the issues"
+          echo "Branch: develop"
+          echo "Commit: ${{ github.sha }}"
+
+  # (Opcional) Trigger deployment a staging
+  trigger-deployment:
+    needs: ci
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Trigger staging deployment
+        run: |
+          echo "🚀 Deployment to staging environment"
+          echo "Image: ${{ needs.ci.outputs.image-url }}"
+          echo "Digest: ${{ needs.ci.outputs.image-digest }}"
+          # Aquí puedes hacer webhook a tu sistema de deployment (ArgoCD, etc)
+          # Example:
+          # curl -X POST https://your-deployment-system.com/webhook \
+          #   -H "Authorization: Bearer ${{ secrets.DEPLOYMENT_TOKEN }}" \
+          #   -d '{"image": "${{ needs.ci.outputs.image-url }}"}'
+
+  # (Opcional) Notificar a Slack si está configurado
+  notify-slack:
+    needs: ci
+    runs-on: ubuntu-latest
+    if: always() && false  # Cambiar a true si tienes webhook de Slack
+    steps:
+      - name: Send Slack notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: |
+            Develop Build: ${{ job.status }}
+            Image: ${{ needs.ci.outputs.image-url }}
+            Digest: ${{ needs.ci.outputs.image-digest }}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}

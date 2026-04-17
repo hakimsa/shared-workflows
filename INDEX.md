@@ -2,11 +2,21 @@
 
 ## 📚 Quick Navigation
 
-- [HOW_TO_USE.md](./HOW_TO_USE.md) - **EMPIEZA AQUÍ** - Cómo usar en tu repo consumidor
+**PARA REPOS CONSUMIDORES:**
+- [HOW_TO_USE.md](./HOW_TO_USE.md) - Cómo usar el workflow reusable en tu repo
+- [CONSUMER_WORKFLOWS.md](./CONSUMER_WORKFLOWS.md) - **⭐ IMPORTANTE** - Estrategia de PR → Merge → Deploy
+
+**DOCUMENTACIÓN DEL SHARED-WORKFLOWS:**
 - [WORKFLOW_REFERENCE.md](./WORKFLOW_REFERENCE.md) - Guía de uso y ejemplos del workflow
 - [WORKFLOW_STRUCTURE.md](./WORKFLOW_STRUCTURE.md) - Estructura interna y mapeo de actions
 - [REFERENCES_DIAGRAM.md](./REFERENCES_DIAGRAM.md) - Diagramas de flujo y referencias
 - [.github/actions/README.md](./.github/actions/README.md) - Documentación de las custom actions
+
+**EJEMPLOS DE WORKFLOWS LISTOS PARA COPIAR:**
+- [examples/pr-validation.yml](./examples/pr-validation.yml) - Validación de PRs
+- [examples/auto-merge-pr.yml](./examples/auto-merge-pr.yml) - Auto merge automático
+- [examples/develop-ci-cd.yml](./examples/develop-ci-cd.yml) - Build & Deploy en develop
+- [examples/main-ci-cd.yml](./examples/main-ci-cd.yml) - Build & Deploy en main (production)
 
 ## 🏗️ Project Structure
 
@@ -163,7 +173,8 @@ build-docker-image
 - **Total Jobs in Main Workflow:** 5
 - **Supported Languages:** Node.js, Python, Java
 - **Supported Docker Registries:** 4 (Docker Hub, GHCR, ACR, Custom)
-- **Documentation Files:** 7
+- **Documentation Files:** 8
+- **Example Workflows:** 4 (ready to copy-paste)
 
 ## 🔍 File Locations Reference
 
