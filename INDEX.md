@@ -2,6 +2,7 @@
 
 ## 📚 Quick Navigation
 
+- [HOW_TO_USE.md](./HOW_TO_USE.md) - **EMPIEZA AQUÍ** - Cómo usar en tu repo consumidor
 - [WORKFLOW_REFERENCE.md](./WORKFLOW_REFERENCE.md) - Guía de uso y ejemplos del workflow
 - [WORKFLOW_STRUCTURE.md](./WORKFLOW_STRUCTURE.md) - Estructura interna y mapeo de actions
 - [REFERENCES_DIAGRAM.md](./REFERENCES_DIAGRAM.md) - Diagramas de flujo y referencias
@@ -39,9 +40,9 @@ shared-workflows/
 
 | Action | Job | Line | Used For |
 |--------|-----|------|----------|
-| [./.github/actions/check](./.github/actions/check/action.yml) | check-with-lint / check | 250 | Linting & SonarCloud |
-| [./.github/actions/build](./.github/actions/build/action.yml) | build-and-push | 277 | Build application |
-| [./.github/actions/build-and-push-image](./.github/actions/build-and-push-image/action.yml) | build-docker-image | 330 | Docker build & push |
+| hakimsa/shared-workflows/.github/actions/check@main | check-with-lint / check | 250 | Linting & SonarCloud |
+| hakimsa/shared-workflows/.github/actions/build@main | build-and-push | 277 | Build application |
+| hakimsa/shared-workflows/.github/actions/build-and-push-image@main | build-docker-image | 330 | Docker build & push |
 
 ## 📖 Documentation Files Explained
 

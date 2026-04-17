@@ -247,7 +247,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       - name: Run checks
         if: ${{ inputs.setup-java }}
-        uses: ./.github/actions/check
+        uses: hakimsa/shared-workflows/.github/actions/check@main
         with:
           working-directory: ${{ inputs.working-directory }}
           install-command:   ${{ inputs.install-command }}
@@ -274,7 +274,7 @@ jobs:
 
       - name: Build application
         id: build
-        uses: ./.github/actions/build
+        uses: hakimsa/shared-workflows/.github/actions/build@main
         with:
           working-directory: ${{ inputs.working-directory }}
           build-command: ${{ inputs.build-command }}
@@ -327,7 +327,7 @@ jobs:
 
       - name: Build and Push Docker Image
         id: image-build
-        uses: ./.github/actions/build-and-push-image
+        uses: hakimsa/shared-workflows/.github/actions/build-and-push-image@main
         with:
           image-name: ${{ inputs.docker-image-name }}
           dockerfile-path: ${{ inputs.dockerfile-path }}
