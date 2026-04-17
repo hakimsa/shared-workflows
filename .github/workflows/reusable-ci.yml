@@ -70,6 +70,26 @@ on:
         required: false
         type: string
         default: ''
+      docker-registry:
+        required: false
+        type: string
+        default: 'docker'
+        description: 'Registry type: docker (Docker Hub), ghcr (GitHub Container Registry), acr (Azure), custom'
+      docker-build-args:
+        required: false
+        type: string
+        default: ''
+        description: 'Docker build arguments (newline-separated)'
+      docker-platforms:
+        required: false
+        type: string
+        default: 'linux/amd64'
+        description: 'Docker build platforms (comma-separated)'
+      docker-registry-url:
+        required: false
+        type: string
+        default: ''
+        description: 'Custom registry URL (required for acr and custom)'
 
     secrets:
       KUBE_CONFIG:
@@ -82,11 +102,21 @@ on:
         required: false
       SONAR_TOKEN:
         required: false
+      ACR_USERNAME:
+        required: false
+      ACR_PASSWORD:
+        required: false
 
     outputs:
       artifact-name:
         description: "Nombre del artefacto generado"
         value: ${{ jobs.build-and-push.outputs.artifact-name }}
+      image-digest:
+        description: "Digest de la imagen Docker"
+        value: ${{ jobs.build-docker-image.outputs.image-digest }}
+      image-url:
+        description: "URL completa de la imagen Docker"
+        value: ${{ jobs.build-docker-image.outputs.image-url }}
 
 
 jobs:
@@ -180,8 +210,8 @@ jobs:
           path: coverage/
 
 
-  # ── 3. SONAR ─────────────────────────────────────────────
-  check-with-sonar:
+  # ── 3. checks linter and sonar ─────────────────────────────────────────────
+  check:
     runs-on: ubuntu-latest
     needs: test-and-coverage
     if: ${{ !failure() && !cancelled() && inputs.lint-command != ''  }}
@@ -215,101 +245,99 @@ jobs:
          echo "Token length: ${#SONAR_TOKEN}"
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      - name: SonarCloud analysis
+      - name: Run checks
         if: ${{ inputs.setup-java }}
-        run: |
-          mvn verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-            -Dsonar.projectKey=hakimsa_bakend-mgt \
-            -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.organization=hakimsa-1 \
-            -Dsonar.token=${{ secrets.SONAR_TOKEN }}
-      
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        uses: ./.github/actions/check
+        with:
+          working-directory: ${{ inputs.working-directory }}
+          install-command:   ${{ inputs.install-command }}
+          lint-command:      ${{ inputs.lint-command }}
+          setup-node:        ${{ inputs.setup-node }}
+          node-version:      ${{ inputs.node-version }}
+          setup-python:      ${{ inputs.setup-python }}
+          python-version:    ${{ inputs.python-version }}
+          setup-java:        ${{ inputs.setup-java }}
+          java-version:      ${{ inputs.java-version }}
+          package-token:     ${{ secrets.PACKAGE_TOKEN }}
+          sonar-token:       ${{ secrets.SONAR_TOKEN }}
 
 
   # ── 4. BUILD IMAGE DOCKER + PUSH ─────────────────────────
   build-and-push:
     runs-on: ubuntu-latest
-    needs: [check-with-lint, test-and-coverage, check-with-sonar]
+    needs: [check-with-lint, test-and-coverage, check]
     if: ${{ !failure() && !cancelled() && inputs.build-command != '' }}
     outputs:
-      artifact-name: ${{ steps.set-output.outputs.artifact-name }}
-    defaults:
-      run:
-        working-directory: ${{ inputs.working-directory }}
+      artifact-name: ${{ steps.build.outputs.artifact-name }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        if: ${{ inputs.setup-node }}
-        uses: actions/setup-node@v4
+      - name: Build application
+        id: build
+        uses: ./.github/actions/build
         with:
+          working-directory: ${{ inputs.working-directory }}
+          build-command: ${{ inputs.build-command }}
+          install-command: ${{ inputs.install-command }}
+          artifact-path: ${{ inputs.artifact-path }}
+          setup-node: ${{ inputs.setup-node }}
           node-version: ${{ inputs.node-version }}
-          cache: 'npm'
-
-      - name: Setup Python
-        if: ${{ inputs.setup-python }}
-        uses: actions/setup-python@v5
-        with:
+          setup-python: ${{ inputs.setup-python }}
           python-version: ${{ inputs.python-version }}
-          cache: 'pip'
-
-      - name: Setup Java
-        if: ${{ inputs.setup-java }}
-        uses: actions/setup-java@v4
-        with:
+          setup-java: ${{ inputs.setup-java }}
           java-version: ${{ inputs.java-version }}
-          distribution: 'temurin'
-          cache: 'maven'
+          package-token: ${{ secrets.PACKAGE_TOKEN }}
 
-      - name: Install dependencies
-        run: ${{ inputs.install-command }}
-        env:
-          PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
 
-      - name: Build
-        run: ${{ inputs.build-command }}
+  # ── 5. BUILD AND PUSH DOCKER IMAGE (USING REUSABLE ACTION) ──────────────
+  build-docker-image:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: ${{ !failure() && !cancelled() && inputs.docker-image-name != '' }}
+    outputs:
+      image-digest: ${{ steps.image-build.outputs.image-digest }}
+      image-url: ${{ steps.image-build.outputs.image-url }}
+    env:
+      DOCKER_REGISTRY: ${{ inputs.docker-registry }}
+      DOCKER_IMAGE_NAME: ${{ inputs.docker-image-name }}
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Set artifact name
-        id: set-output
-        run: echo "artifact-name=build-${{ github.sha }}" >> $GITHUB_OUTPUT
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-${{ github.sha }}
-          path: ${{ inputs.working-directory }}/${{ inputs.artifact-path }}
-          retention-days: 7
-
-      - name: Set image tag
-        id: set-tag
-        if: ${{ inputs.docker-image-name != '' }}
+      - name: Prepare credentials
+        id: creds
         run: |
-          if [ "${{ inputs.environment }}" == "production" ]; then
-            if [ -z "${{ inputs.image-tag }}" ]; then
-              echo "ERROR: image-tag is required for production"
-              exit 1
-            fi
-            echo "tag=${{ inputs.image-tag }}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
-          fi
+          case "${{ env.DOCKER_REGISTRY }}" in
+            docker)
+              echo "registry_username=${{ secrets.DOCKERHUB_USERNAME }}" >> $GITHUB_OUTPUT
+              echo "registry_password=${{ secrets.DOCKERHUB_TOKEN }}" >> $GITHUB_OUTPUT
+              ;;
+            ghcr)
+              echo "registry_username=${{ github.actor }}" >> $GITHUB_OUTPUT
+              echo "registry_password=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
+              ;;
+            acr)
+              echo "registry_username=${{ secrets.ACR_USERNAME }}" >> $GITHUB_OUTPUT
+              echo "registry_password=${{ secrets.ACR_PASSWORD }}" >> $GITHUB_OUTPUT
+              ;;
+            custom)
+              echo "registry_username=${{ secrets.ACR_USERNAME }}" >> $GITHUB_OUTPUT
+              echo "registry_password=${{ secrets.ACR_PASSWORD }}" >> $GITHUB_OUTPUT
+              ;;
+          esac
 
-      - name: Login to Docker Hub
-        if: ${{ inputs.docker-image-name != '' }}
-        uses: docker/login-action@v3
+      - name: Build and Push Docker Image
+        id: image-build
+        uses: ./.github/actions/build-and-push-image
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build and Push Docker image
-        if: ${{ inputs.docker-image-name != '' }}
-        uses: docker/build-push-action@v5
-        with:
+          image-name: ${{ inputs.docker-image-name }}
+          dockerfile-path: ${{ inputs.dockerfile-path }}
           context: ${{ inputs.working-directory }}
-          file: ${{ inputs.dockerfile-path }}
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.docker-image-name }}:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.docker-image-name }}:${{ steps.set-tag.outputs.tag }}
+          registry: ${{ inputs.docker-registry }}
+          registry-username: ${{ steps.creds.outputs.registry_username }}
+          registry-password: ${{ steps.creds.outputs.registry_password }}
+          registry-url: ${{ inputs.docker-registry-url }}
+          tags: ${{ inputs.image-tag != '' && inputs.image-tag || github.sha }}
+          build-args: ${{ inputs.docker-build-args }}
+          platforms: ${{ inputs.docker-platforms }}
+          environment: ${{ inputs.environment }}
+          push: 'true'

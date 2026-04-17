@@ -1,0 +1,110 @@
+name: 'Build'
+description: 'Build application with support for Node.js, Python, and Java'
+
+inputs:
+  working-directory:
+    required: false
+    default: '.'
+    description: 'Working directory for the build'
+  
+  build-command:
+    required: true
+    description: 'Command to build the application'
+  
+  install-command:
+    required: true
+    description: 'Command to install dependencies'
+  
+  artifact-path:
+    required: false
+    default: 'dist/'
+    description: 'Path to build artifacts'
+  
+  setup-node:
+    required: false
+    default: 'false'
+    description: 'Setup Node.js environment'
+  
+  node-version:
+    required: false
+    default: '20'
+    description: 'Node.js version to setup'
+  
+  setup-python:
+    required: false
+    default: 'false'
+    description: 'Setup Python environment'
+  
+  python-version:
+    required: false
+    default: '3.12'
+    description: 'Python version to setup'
+  
+  setup-java:
+    required: false
+    default: 'false'
+    description: 'Setup Java environment'
+  
+  java-version:
+    required: false
+    default: '21'
+    description: 'Java version to setup'
+  
+  package-token:
+    required: false
+    default: ''
+    description: 'Token for package registry'
+
+outputs:
+  artifact-name:
+    description: 'Name of the generated artifact'
+    value: ${{ steps.set-output.outputs.artifact-name }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      if: ${{ inputs.setup-node == 'true' }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+
+    - name: Setup Python
+      if: ${{ inputs.setup-python == 'true' }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: 'pip'
+
+    - name: Setup Java
+      if: ${{ inputs.setup-java == 'true' }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ inputs.java-version }}
+        distribution: 'temurin'
+        cache: 'maven'
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: ${{ inputs.install-command }}
+      env:
+        PACKAGE_TOKEN: ${{ inputs.package-token }}
+
+    - name: Build application
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: ${{ inputs.build-command }}
+
+    - name: Set artifact name
+      id: set-output
+      shell: bash
+      run: echo "artifact-name=build-${{ github.sha }}" >> $GITHUB_OUTPUT
+
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-${{ github.sha }}
+        path: ${{ inputs.working-directory }}/${{ inputs.artifact-path }}
+        retention-days: 7

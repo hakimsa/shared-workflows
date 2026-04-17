@@ -1,0 +1,113 @@
+name: 'Check - Lint & Sonar'
+description: 'Runs linter and SonarCloud analysis'
+
+inputs:
+  working-directory:
+    required: false
+    default: '.'
+    description: 'Working directory for the workflow'
+  install-command:
+    required: true
+    description: 'Command to install dependencies'
+  lint-command:
+    required: false
+    default: ''
+    description: 'Command to run linter'
+  setup-node:
+    required: false
+    default: 'false'
+    description: 'Setup Node.js environment'
+  node-version:
+    required: false
+    default: '20'
+    description: 'Node.js version to setup'
+  setup-python:
+    required: false
+    default: 'false'
+    description: 'Setup Python environment'
+  python-version:
+    required: false
+    default: '3.12'
+    description: 'Python version to setup'
+  setup-java:
+    required: false
+    default: 'false'
+    description: 'Setup Java environment'
+  java-version:
+    required: false
+    default: '21'
+    description: 'Java version to setup'
+  package-token:
+    required: false
+    default: ''
+    description: 'Token for package registry'
+  sonar-token:
+    required: false
+    default: ''
+    description: 'SonarCloud token for analysis'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      if: ${{ inputs.setup-node == 'true' }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+
+    - name: Setup Python
+      if: ${{ inputs.setup-python == 'true' }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: 'pip'
+
+    - name: Setup Java
+      if: ${{ inputs.setup-java == 'true' }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ inputs.java-version }}
+        distribution: 'temurin'
+        cache: 'maven'
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: ${{ inputs.install-command }}
+      env:
+        PACKAGE_TOKEN: ${{ inputs.package-token }}
+
+    - name: Run lint
+      if: ${{ inputs.lint-command != '' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: ${{ inputs.lint-command }}
+
+    # ── SONAR ────────────────────────────────────────────────
+    - name: Build and test for Sonar
+      if: ${{ inputs.setup-java == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: mvn clean verify
+
+    - name: Debug Sonar token
+      shell: bash
+      run: |
+        echo "Token empty: ${{ inputs.sonar-token == '' }}"
+        echo "Token length: ${#SONAR_TOKEN}"
+      env:
+        SONAR_TOKEN: ${{ inputs.sonar-token }}
+
+    - name: SonarCloud analysis
+      if: ${{ inputs.setup-java == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        mvn verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+          -Dsonar.projectKey=hakimsa_bakend-mgt \
+          -Dsonar.host.url=https://sonarcloud.io \
+          -Dsonar.organization=hakimsa-1 \
+          -Dsonar.token=${{ inputs.sonar-token }}
+      env:
+        SONAR_TOKEN: ${{ inputs.sonar-token }}
